@@ -127,7 +127,27 @@ gh prreview resolve --unresolve <PR_NUMBER> <COMMENT_ID>
 
 # Enable verbose logging when resolving
 gh prreview resolve --debug <PR_NUMBER> <COMMENT_ID>
+
+### Reply to review comments
+
+```bash
+# Reply to a review comment (PR inferred from current branch) using your editor
+gh prreview comment <COMMENT_ID>
+
+# Reply to a review comment on a specific PR with an inline body
+gh prreview comment <PR_NUMBER> <COMMENT_ID> --body "Thanks for the feedback!"
+
+# Read the reply body from a file or stdin
+gh prreview comment <PR_NUMBER> <COMMENT_ID> --body-file ./reply.txt
+gh prreview comment <PR_NUMBER> <COMMENT_ID> --stdin < reply.md
 ```
+
+Flags:
+
+- `--body` – set the reply body directly on the command line
+- `--body-file` – load the reply body from a file
+- `--stdin` – read the reply body from standard input
+- `--debug` – enable verbose logging for API calls
 
 ## Features
 
@@ -141,6 +161,7 @@ gh prreview resolve --debug <PR_NUMBER> <COMMENT_ID>
 - ⚠️  Detects conflicts with local changes
 - 🤖 AI-powered suggestion application (adapts to code changes)
 - ✔️  Mark review threads as resolved after applying suggestions
+- 💬 Reply to review comment threads without leaving the terminal
 
 ## How it works
 
