@@ -1039,7 +1039,3 @@ func (r *suggestionRenderer) EditPath(comment *github.ReviewComment) string {
 func (r *suggestionRenderer) EditLine(comment *github.ReviewComment) int {
 	return comment.Line
 }
-
-func (r *suggestionRenderer) BrowserURL(comment *github.ReviewComment) string {
-	return comment.HTMLURL
-}

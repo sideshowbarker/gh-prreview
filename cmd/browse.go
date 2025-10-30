@@ -60,9 +60,15 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
-		// Use interactive selector
+		// Use interactive selector with resolve action
 		renderer := &browseCommentRenderer{repo: getRepoFromClient(client), prNumber: prNumber}
-		selected, err := ui.SelectFromList(comments, renderer)
+
+		// Create resolve action
+		resolveAction := func(comment *github.ReviewComment) error {
+			return resolveCommentAction(client, prNumber, comment)
+		}
+
+		selected, err := ui.SelectFromListWithAction(comments, renderer, resolveAction, "ctrl+r resolve")
 		if err != nil {
 			return fmt.Errorf("selection cancelled: %w", err)
 		}
@@ -131,7 +137,7 @@ func openCommentInBrowser(client *github.Client, prNumber int, commentID int64) 
 		openCmd = exec.Command("xdg-open", commentURL)
 	}
 
-	if err := openCmd.Run(); err != nil {
+	if err := openCmd.Start(); err != nil {
 		return fmt.Errorf("failed to open browser: %w", err)
 	}
 
@@ -259,6 +265,41 @@ func (r *browseCommentRenderer) EditLine(comment *github.ReviewComment) int {
 	return comment.Line
 }
 
-func (r *browseCommentRenderer) BrowserURL(comment *github.ReviewComment) string {
-	return comment.HTMLURL
+// resolveCommentAction resolves a review comment thread
+func resolveCommentAction(client *github.Client, prNumber int, comment *github.ReviewComment) error {
+	if comment.ThreadID == "" {
+		fmt.Printf("%s Comment has no thread ID\n", ui.Colorize(ui.ColorRed, "❌"))
+		return fmt.Errorf("comment has no thread ID")
+	}
+
+	// Toggle resolve status
+	commentLink := ui.CreateHyperlink(comment.HTMLURL, fmt.Sprintf("Comment %d", comment.ID))
+
+	if comment.IsResolved() {
+		// Unresolve
+		if err := client.UnresolveThread(comment.ThreadID); err != nil {
+			fmt.Printf("%s Failed to unresolve %s: %v\n",
+				ui.Colorize(ui.ColorRed, "❌"),
+				ui.Colorize(ui.ColorCyan, commentLink),
+				ui.Colorize(ui.ColorRed, err.Error()))
+			return err
+		}
+		fmt.Printf("%s %s marked as unresolved\n",
+			ui.Colorize(ui.ColorYellow, "✓"),
+			ui.Colorize(ui.ColorCyan, commentLink))
+	} else {
+		// Resolve
+		if err := client.ResolveThread(comment.ThreadID); err != nil {
+			fmt.Printf("%s Failed to resolve %s: %v\n",
+				ui.Colorize(ui.ColorRed, "❌"),
+				ui.Colorize(ui.ColorCyan, commentLink),
+				ui.Colorize(ui.ColorRed, err.Error()))
+			return err
+		}
+		fmt.Printf("%s %s marked as resolved\n",
+			ui.Colorize(ui.ColorGreen, "✓"),
+			ui.Colorize(ui.ColorCyan, commentLink))
+	}
+
+	return nil
 }

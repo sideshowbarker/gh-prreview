@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -25,16 +24,19 @@ type ItemRenderer[T any] interface {
 	EditPath(item T) string
 	// EditLine returns the line number to go to in editor (1-based, optional)
 	EditLine(item T) int
-	// BrowserURL returns the URL to open in browser (optional)
-	BrowserURL(item T) string
 }
+
+// CustomAction is a function that handles custom actions on items
+type CustomAction[T any] func(item T) error
 
 // SelectionModel is the tea.Model for interactive selection
 type SelectionModel[T any] struct {
-	list       list.Model
-	items      []T
-	result     []T
-	windowSize tea.WindowSizeMsg
+	list         list.Model
+	items        []T
+	result       []T
+	windowSize   tea.WindowSizeMsg
+	customAction CustomAction[T]
+	actionKey    string // Key binding description for custom action (e.g., "ctrl+r resolve")
 }
 
 // Item wraps a generic item for the list model
@@ -58,6 +60,12 @@ func (i listItem[T]) Description() string {
 // SelectFromList creates an interactive selector for a list of items
 // Returns selected items in order they were selected
 func SelectFromList[T any](items []T, renderer ItemRenderer[T]) (T, error) {
+	return SelectFromListWithAction(items, renderer, nil, "")
+}
+
+// SelectFromListWithAction creates an interactive selector with a custom action
+// The customAction is triggered by Ctrl+R, and actionKey describes the action in the help text
+func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], customAction CustomAction[T], actionKey string) (T, error) {
 	// Convert items to list items
 	listItems := make([]list.Item, len(items))
 	for i, item := range items {
@@ -71,9 +79,11 @@ func SelectFromList[T any](items []T, renderer ItemRenderer[T]) (T, error) {
 	l.SetFilteringEnabled(true)
 
 	m := &SelectionModel[T]{
-		list:   l,
-		items:  items,
-		result: make([]T, 0),
+		list:         l,
+		items:        items,
+		result:       make([]T, 0),
+		customAction: customAction,
+		actionKey:    actionKey,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -119,13 +129,13 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
-		case "ctrl+b":
-			// Open in browser
-			selected := m.list.SelectedItem()
-			if selected != nil {
-				item := selected.(listItem[T])
-				if browserURL := item.item.BrowserURL(item.value); browserURL != "" {
-					_ = m.openInBrowser(browserURL)
+		case "ctrl+r":
+			// Custom action (e.g., resolve)
+			if m.customAction != nil {
+				selected := m.list.SelectedItem()
+				if selected != nil {
+					item := selected.(listItem[T])
+					_ = m.customAction(item.value)
 				}
 			}
 			return m, nil
@@ -163,28 +173,6 @@ func (m *SelectionModel[T]) editInEditor(filePath string, lineNum int) error {
 	return cmd.Run()
 }
 
-// openInBrowser opens a URL in the default browser (OS-agnostic)
-func (m *SelectionModel[T]) openInBrowser(url string) error {
-	var cmd *exec.Cmd
-
-	switch runtime.GOOS {
-	case "darwin":
-		// macOS
-		cmd = exec.Command("open", url)
-	case "linux":
-		// Linux
-		cmd = exec.Command("xdg-open", url)
-	case "windows":
-		// Windows
-		cmd = exec.Command("cmd", "/c", "start", url)
-	default:
-		// Fallback: try xdg-open
-		cmd = exec.Command("xdg-open", url)
-	}
-
-	return cmd.Run()
-}
-
 // View renders the model
 func (m *SelectionModel[T]) View() string {
 	if m.list.SelectedItem() == nil {
@@ -216,7 +204,12 @@ func (m *SelectionModel[T]) View() string {
 	helpStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
 		Italic(true)
-	help := helpStyle.Render("↑/↓ navigate  •  enter select  •  ctrl+e edit  •  ctrl+b browser  •  / search  •  q quit")
+	helpText := "↑/↓ navigate  •  enter select  •  ctrl+e edit"
+	if m.customAction != nil && m.actionKey != "" {
+		helpText += "  •  " + m.actionKey
+	}
+	helpText += "  •  / search  •  q quit"
+	help := helpStyle.Render(helpText)
 
 	// Top section with title
 	titleStyle := lipgloss.NewStyle().
