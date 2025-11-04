@@ -16,6 +16,7 @@ var (
 	resolveUnresolve bool
 	resolveDebug     bool
 	resolveAll       bool
+	resolveComment   string
 )
 
 var resolveCmd = &cobra.Command{
@@ -33,6 +34,7 @@ func init() {
 	resolveCmd.Flags().BoolVar(&resolveUnresolve, "unresolve", false, "Mark the thread as unresolved instead of resolved")
 	resolveCmd.Flags().BoolVar(&resolveDebug, "debug", false, "Enable debug output")
 	resolveCmd.Flags().BoolVar(&resolveAll, "all", false, "Apply action to all unresolved comments on the PR")
+	resolveCmd.Flags().StringVarP(&resolveComment, "comment", "c", "", "Add a comment when resolving")
 }
 
 func runResolve(cmd *cobra.Command, args []string) error {
@@ -101,6 +103,20 @@ func runResolve(cmd *cobra.Command, args []string) error {
 	}
 
 	return resolveIndividualComment(client, prNumber, commentID)
+}
+
+func addCommentToReview(client *github.Client, prNumber int, commentID int64, commentBody string, commentLink string) error {
+	if _, err := client.ReplyToReviewComment(prNumber, commentID, commentBody); err != nil {
+		fmt.Printf("%s Failed to add comment to %s: %v\\n",
+			ui.Colorize(ui.ColorRed, "❌"),
+			ui.Colorize(ui.ColorCyan, commentLink),
+			ui.Colorize(ui.ColorRed, err.Error()))
+		return err
+	}
+	fmt.Printf("%s Comment added to %s\\n",
+		ui.Colorize(ui.ColorGreen, "✓"),
+		ui.Colorize(ui.ColorCyan, commentLink))
+	return nil
 }
 
 func resolveAllComments(client *github.Client, prNumber int) error {
@@ -172,11 +188,16 @@ func resolveAllComments(client *github.Client, prNumber int) error {
 
 	// Resolve/unresolve all comments
 	successCount := 0
-	errorCount := 0
+			errorCount := 0
+	
+		for _, comment := range unresolvedComments {		commentLink := ui.CreateHyperlink(comment.HTMLURL, fmt.Sprintf("Comment %d", comment.ID))
 
-	for _, comment := range unresolvedComments {
-		commentLink := ui.CreateHyperlink(comment.HTMLURL, fmt.Sprintf("Comment %d", comment.ID))
-
+		if resolveComment != "" {
+			if err := addCommentToReview(client, prNumber, comment.ID, resolveComment, commentLink); err != nil {
+				errorCount++
+				continue // Continue to next comment if adding a comment fails
+			}
+		}
 		if resolveUnresolve {
 			if err := client.UnresolveThread(comment.ThreadID); err != nil {
 				fmt.Printf("%s Failed to unresolve %s: %v\n",
@@ -236,6 +257,16 @@ func resolveIndividualComment(client *github.Client, prNumber int, commentID int
 	// Resolve or unresolve the thread
 	commentLink := ui.CreateHyperlink(fmt.Sprintf("https://github.com/%s/pull/%d#discussion_r%d", getRepoFromClient(client), prNumber, commentID),
 		fmt.Sprintf("Comment %d", commentID))
+
+	if resolveComment != "" {
+		if err := addCommentToReview(client, prNumber, commentID, resolveComment, commentLink); err != nil {
+			// Log the error but continue to resolve/unresolve the thread
+			fmt.Printf("%s Failed to add comment to %s: %v\n",
+				ui.Colorize(ui.ColorRed, "❌"),
+				ui.Colorize(ui.ColorCyan, commentLink),
+				ui.Colorize(ui.ColorRed, err.Error()))
+		}
+	}
 
 	if resolveUnresolve {
 		if err := client.UnresolveThread(threadID); err != nil {

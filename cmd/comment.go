@@ -51,9 +51,9 @@ func runComment(cmd *cobra.Command, args []string) error {
 	}
 
 	var (
-		prNumber int
+		prNumber  int
 		commentID int64
-		err      error
+		err       error
 	)
 
 	// Parse arguments based on count

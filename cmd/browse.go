@@ -152,7 +152,7 @@ func openCommentInBrowser(client *github.Client, prNumber int, commentID int64) 
 
 // browseCommentRenderer implements ui.ItemRenderer for ReviewComments in browse context
 type browseCommentRenderer struct {
-	repo    string
+	repo     string
 	prNumber int
 }
 
