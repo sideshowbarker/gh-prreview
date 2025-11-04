@@ -188,9 +188,10 @@ func resolveAllComments(client *github.Client, prNumber int) error {
 
 	// Resolve/unresolve all comments
 	successCount := 0
-			errorCount := 0
-	
-		for _, comment := range unresolvedComments {		commentLink := ui.CreateHyperlink(comment.HTMLURL, fmt.Sprintf("Comment %d", comment.ID))
+	errorCount := 0
+
+	for _, comment := range unresolvedComments {
+		commentLink := ui.CreateHyperlink(comment.HTMLURL, fmt.Sprintf("Comment %d", comment.ID))
 
 		if resolveComment != "" {
 			if err := addCommentToReview(client, prNumber, comment.ID, resolveComment, commentLink); err != nil {

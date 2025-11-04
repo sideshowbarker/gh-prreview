@@ -131,6 +131,7 @@ The interactive selector allows you to:
 - View rich preview pane with comment details
 - Press Ctrl+E to open the file in your `$EDITOR`
 - Press Ctrl+B to open the comment in your browser
+- Press Ctrl+R to resolve/unresolve the comment thread
 - Press / to search/filter comments
 - Press Enter to open in browser
 
@@ -152,6 +153,9 @@ gh prreview resolve --unresolve <COMMENT_ID>
 
 # Resolve all unresolved comments on the PR
 gh prreview resolve --all
+
+# Add a comment when resolving
+gh prreview resolve --comment "Fixed" <COMMENT_ID>
 
 # Enable verbose logging when resolving
 gh prreview resolve --debug <COMMENT_ID>

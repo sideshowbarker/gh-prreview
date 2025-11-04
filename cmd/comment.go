@@ -182,8 +182,8 @@ func promptForCommentBody() (string, error) {
 	}()
 
 	if _, err := tmpFile.WriteString(template); err != nil {
-		tmpFile.Close()
-		return "", fmt.Errorf("failed to write template: %w", err)
+		closeErr := tmpFile.Close()
+		return "", fmt.Errorf("failed to write template: %w (and closing file: %v)", err, closeErr)
 	}
 	if err := tmpFile.Close(); err != nil {
 		return "", fmt.Errorf("failed to close temporary file: %w", err)
