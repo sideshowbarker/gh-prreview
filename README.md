@@ -111,8 +111,6 @@ gh prreview apply --ai-template ./path/to/template.tmpl [PR_NUMBER]
 **Prerequisites:** Set `GEMINI_API_KEY` or `GOOGLE_API_KEY` environment
 variable, or use `--ai-token` flag.
 
-See [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md) for detailed AI feature documentation.
-
 ### Browse review comments
 
 ```bash
@@ -127,6 +125,7 @@ gh prreview browse <PR_NUMBER> <COMMENT_ID>
 ```
 
 The interactive selector allows you to:
+
 - Navigate with arrow keys
 - View rich preview pane with comment details
 - Press Ctrl+E to open the file in your `$EDITOR`
