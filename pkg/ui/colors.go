@@ -121,9 +121,15 @@ type AuthorStyle struct {
 // NewAuthorStyle creates a new author style based on the author name.
 // Bots (ending with [bot]) are colored yellow, regular users in cyan.
 func NewAuthorStyle(author string) *AuthorStyle {
+	isBot := strings.HasSuffix(author, "[bot]") || strings.EqualFold(author, "Copilot")
+	name := author
+	if strings.HasSuffix(author, "[bot]") {
+		name = strings.TrimSuffix(author, "[bot]")
+	}
+
 	style := &AuthorStyle{
-		Name:  author,
-		IsBot: strings.HasSuffix(author, "[bot]"),
+		Name:  name,
+		IsBot: isBot,
 	}
 
 	if style.IsBot {
@@ -137,8 +143,11 @@ func NewAuthorStyle(author string) *AuthorStyle {
 
 // Format returns the formatted author string with color (colored "@authorname").
 func (as *AuthorStyle) Format(includeIcon bool) string {
-	_ = includeIcon // Icon parameter unused currently
-	return Colorize(as.Color, "@"+as.Name)
+	icon := "👤"
+	if as.IsBot {
+		icon = "🤖"
+	}
+	return fmt.Sprintf("%s %s", icon, Colorize(as.Color, "@"+as.Name))
 }
 
 // ============================================================================
