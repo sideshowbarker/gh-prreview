@@ -967,3 +967,7 @@ func (r *suggestionRenderer) EditLine(comment *github.ReviewComment) int {
 func (r *suggestionRenderer) FilterValue(comment *github.ReviewComment) string {
 	return r.Title(comment) + " " + r.Description(comment)
 }
+
+func (r *suggestionRenderer) IsSkippable(comment *github.ReviewComment) bool {
+	return false
+}

@@ -27,6 +27,8 @@ type ItemRenderer[T any] interface {
 	EditLine(item T) int
 	// FilterValue returns the string to match against when filtering
 	FilterValue(item T) string
+	// IsSkippable returns true if the item should be skipped during navigation
+	IsSkippable(item T) bool
 }
 
 // CustomAction is a function that handles custom actions on items
@@ -177,17 +179,58 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		case "down", "j":
+			m.list.CursorDown()
+			// Skip items that are marked as skippable (e.g. preview lines)
+			for {
+				selectedItem := m.list.SelectedItem()
+				if selectedItem == nil {
+					break
+				}
+				item := selectedItem.(listItem[T])
+				if !m.renderer.IsSkippable(item.value) {
+					break
+				}
+				// If we hit the bottom and it's skippable, we can't go further down.
+				// We should probably go back up to the last non-skippable item.
+				if m.list.Index() == len(m.list.Items())-1 {
+					m.list.CursorUp()
+					continue // Loop will check if new item is skippable (it shouldn't be if we came from there)
+				}
+				m.list.CursorDown()
+			}
+			return m, nil
+		case "up", "k":
+			m.list.CursorUp()
+			// Skip items that are marked as skippable
+			for {
+				selectedItem := m.list.SelectedItem()
+				if selectedItem == nil {
+					break
+				}
+				item := selectedItem.(listItem[T])
+				if !m.renderer.IsSkippable(item.value) {
+					break
+				}
+				// If we hit the top and it's skippable
+				if m.list.Index() == 0 {
+					m.list.CursorDown()
+					continue
+				}
+				m.list.CursorUp()
+			}
+			return m, nil
 		case "enter":
 			selected := m.list.SelectedItem()
 			if selected != nil {
 				item := selected.(listItem[T])
-				
+
 				if m.onSelect != nil {
 					msg, err := m.onSelect(item.value)
 					if err != nil {
 						return m, m.list.NewStatusMessage(Colorize(ColorRed, err.Error()))
 					}
-					
+
 					if msg == "SHOW_DETAIL" {
 						// Show detail view
 						m.showDetail = true
@@ -197,18 +240,18 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.viewport.GotoTop()
 						return m, nil
 					}
-					
+
 					// Assume it was a toggle or action that requires refresh
 					m.updateVisibleItems()
 					// Force update of the item in the list to reflect changes
 					m.list.SetItem(m.list.Index(), item)
-					
+
 					if msg != "" {
 						return m, m.list.NewStatusMessage(msg)
 					}
 					return m, nil
 				}
-				
+
 				if m.onOpen != nil {
 					// Browse mode: Show Detail
 					m.showDetail = true
@@ -246,7 +289,7 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					// Force update of the item in the list to reflect changes
 					m.list.SetItem(m.list.Index(), item)
-					
+
 					if msg != "" {
 						return m, m.list.NewStatusMessage(msg)
 					}
@@ -332,11 +375,11 @@ func (m *SelectionModel[T]) View() string {
 	var helpText string
 	if !m.showHelp {
 		// Compact view
-		helpText = "↑/↓ navigate  •  enter details  •  q quit  •  ? more"
+		helpText = "↑/↓ navigate  •  enter details  •  o open  •  q quit  •  ? more"
 	} else {
 		// Expanded view
 		helpText = "↑/↓ navigate  •  enter details  •  q quit  •  ? less\n"
-		
+
 		var extraCommands []string
 		if m.onOpen != nil {
 			extraCommands = append(extraCommands, "o open browser")
@@ -349,10 +392,10 @@ func (m *SelectionModel[T]) View() string {
 			extraCommands = append(extraCommands, m.actionKey)
 		}
 		extraCommands = append(extraCommands, "/ search")
-		
+
 		helpText += strings.Join(extraCommands, "  •  ")
 	}
-	
+
 	help := helpStyle.Render(helpText)
 
 	// Top section with title

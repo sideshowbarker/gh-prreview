@@ -95,7 +95,7 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 		// Filter function (hide resolved and collapsed)
 		filterFunc := func(item BrowseItem, hideResolved bool) bool {
 			// 1. Check collapse state (Always applies)
-			if item.Type == "comment" && collapsedFiles[item.Path] {
+			if (item.Type == "comment" || item.Type == "comment_preview") && collapsedFiles[item.Path] {
 				return false
 			}
 			
@@ -207,9 +207,10 @@ func openCommentInBrowser(client *github.Client, prNumber int, commentID int64) 
 
 // BrowseItem represents an item in the browse list (either a file header or a comment)
 type BrowseItem struct {
-	Type    string // "file" or "comment"
-	Path    string
-	Comment *github.ReviewComment
+	Type      string // "file", "comment", "comment_preview"
+	Path      string
+	Comment   *github.ReviewComment
+	IsPreview bool
 }
 
 // buildCommentTree converts a flat list of comments into a tree-like structure
@@ -267,10 +268,18 @@ func buildCommentTree(comments []*github.ReviewComment) []BrowseItem {
 		
 		// Add Comments
 		for _, c := range fileComments {
+			// Main comment item
 			items = append(items, BrowseItem{
 				Type:    "comment",
 				Path:    path,
 				Comment: c,
+			})
+			// Preview item (skippable)
+			items = append(items, BrowseItem{
+				Type:      "comment_preview",
+				Path:      path,
+				Comment:   c,
+				IsPreview: true,
 			})
 		}
 	}
@@ -293,20 +302,31 @@ func (r *browseItemRenderer) Title(item BrowseItem) string {
 		}
 		return ui.Colorize(ui.ColorCyan, fmt.Sprintf("%s 📂 %s", icon, item.Path))
 	}
-	// Comment
+	
+	if item.IsPreview {
+		// Show truncated body for preview item
+		body := ui.StripSuggestionBlock(item.Comment.Body)
+		lines := strings.Split(body, "\n")
+		preview := "..."
+		if len(lines) > 0 {
+			preview = lines[0]
+			if len(preview) > 80 {
+				preview = preview[:77] + "..."
+			} else if len(lines) > 1 {
+				preview += "..."
+			}
+		}
+		return "      " + ui.Colorize(ui.ColorGray, preview)
+	}
+
+	// Comment Metadata
 	style := ui.NewReviewListStyle(item.Comment.Author, item.Comment.IsResolved())
 	// Indent with tree structure
-	return "  └── " + style.FormatCommentTitle(item.Comment.ID)
+	return fmt.Sprintf("  └── %s Line %d %s", style.FormatCommentTitle(item.Comment.ID), item.Comment.Line, style.Status.Format(true))
 }
 
 func (r *browseItemRenderer) Description(item BrowseItem) string {
-	if item.Type == "file" {
-		return ""
-	}
-	// Comment
-	style := ui.NewReviewListStyle(item.Comment.Author, item.Comment.IsResolved())
-	// Show line number and status, but not path (since it's under the file header)
-	return fmt.Sprintf("Line %d %s", item.Comment.Line, style.Status.Format(true))
+	return ""
 }
 
 func (r *browseItemRenderer) Preview(item BrowseItem) string {
@@ -419,6 +439,10 @@ func (r *browseItemRenderer) FilterValue(item BrowseItem) string {
 		return item.Path
 	}
 	return item.Path + " " + r.Title(item) + " " + r.Description(item) + " " + item.Comment.Body
+}
+
+func (r *browseItemRenderer) IsSkippable(item BrowseItem) bool {
+	return item.IsPreview
 }
 
 // resolveCommentAction resolves a review comment thread
