@@ -271,13 +271,13 @@ func (a *Applier) applySuggestion(comment *github.ReviewComment) error {
 
 	// Construct the new file content
 	var newFileLines []string
-	
+
 	// Add lines before the change
 	newFileLines = append(newFileLines, fileLines[:targetLine]...)
-	
+
 	// Add the suggested lines
 	newFileLines = append(newFileLines, suggestionLines...)
-	
+
 	// Add lines after the change
 	if targetLine+removeCount < len(fileLines) {
 		newFileLines = append(newFileLines, fileLines[targetLine+removeCount:]...)
@@ -286,13 +286,13 @@ func (a *Applier) applySuggestion(comment *github.ReviewComment) error {
 	// Join lines and write back to file
 	// Note: This assumes \n line endings. For mixed line endings, we might want to detect the file's EOL.
 	newContent := strings.Join(newFileLines, "\n")
-	
+
 	// Preserve trailing newline if the original file had one
 	if strings.HasSuffix(string(fileContent), "\n") && !strings.HasSuffix(newContent, "\n") {
 		newContent += "\n"
 	}
 
-	if err := os.WriteFile(comment.Path, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(comment.Path, []byte(newContent), 0o644); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", comment.Path, err)
 	}
 
@@ -305,7 +305,7 @@ func (a *Applier) findReplacementTarget(comment *github.ReviewComment, fileLines
 	// Extract the lines that were added in the PR (+ lines) from DiffHunk
 	// These are the lines we expect to find in the local file and replace
 	addedLines := diffhunk.GetAddedLines(comment.DiffHunk)
-	
+
 	if len(addedLines) == 0 {
 		// If no added lines, this might be a pure addition (no replacement)
 		// But GitHub suggestions usually replace something.
@@ -354,9 +354,8 @@ func (a *Applier) findReplacementTarget(comment *github.ReviewComment, fileLines
 	}
 
 	if !strategy1Valid {
-		targetLine = -1 // Reset
 		a.debugLog("Trying Strategy 2 (content matching)")
-		
+
 		matchStart := -1
 		// Search for the block of lines
 		for i := 0; i <= len(fileLines)-len(addedLines); i++ {

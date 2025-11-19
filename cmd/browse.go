@@ -98,7 +98,7 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 			if (item.Type == "comment" || item.Type == "comment_preview") && collapsedFiles[item.Path] {
 				return false
 			}
-			
+
 			// 2. Check resolved state (Only if hideResolved is true)
 			if hideResolved {
 				if item.Type == "file" {
@@ -106,10 +106,10 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 				}
 				return !item.Comment.IsResolved()
 			}
-			
+
 			return true
 		}
-		
+
 		// Handle selection (Enter key)
 		onSelect := func(item BrowseItem) (string, error) {
 			if item.Type == "file" {
@@ -123,7 +123,7 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("selection cancelled: %w", err)
 		}
-		
+
 		if selected.Type == "file" {
 			// If they selected a header and quit (enter), maybe just do nothing or open the file?
 			// For now, let's assume they meant to select a comment.
@@ -132,7 +132,7 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 			fmt.Println("Selected a file header. Please select a comment.")
 			return nil
 		}
-		
+
 		commentID = selected.Comment.ID
 	} else if len(args) == 1 {
 		// One argument: treat as COMMENT_ID, infer PR from current branch
@@ -220,23 +220,23 @@ func buildCommentTree(comments []*github.ReviewComment) []BrowseItem {
 	// Make a copy to avoid modifying original slice if needed
 	sortedComments := make([]*github.ReviewComment, len(comments))
 	copy(sortedComments, comments)
-	
+
 	// Simple bubble sort or similar isn't needed, just use standard sort with custom comparator
 	// But we need to import sort. Let's do it manually or add import.
 	// Since I can't easily add imports without context, I'll assume sort is available or use a simple swap.
 	// Actually, let's just use a simple grouping logic.
-	
+
 	// Group by file
 	files := make(map[string][]*github.ReviewComment)
 	var filePaths []string
-	
+
 	for _, c := range comments {
 		if _, exists := files[c.Path]; !exists {
 			filePaths = append(filePaths, c.Path)
 		}
 		files[c.Path] = append(files[c.Path], c)
 	}
-	
+
 	// Sort file paths
 	// We need to sort strings. I'll implement a simple string sort since I can't see imports easily.
 	for i := 0; i < len(filePaths); i++ {
@@ -246,16 +246,16 @@ func buildCommentTree(comments []*github.ReviewComment) []BrowseItem {
 			}
 		}
 	}
-	
+
 	var items []BrowseItem
-	
+
 	for _, path := range filePaths {
 		// Add File Header
 		items = append(items, BrowseItem{
 			Type: "file",
 			Path: path,
 		})
-		
+
 		// Sort comments in this file by line
 		fileComments := files[path]
 		for i := 0; i < len(fileComments); i++ {
@@ -265,7 +265,7 @@ func buildCommentTree(comments []*github.ReviewComment) []BrowseItem {
 				}
 			}
 		}
-		
+
 		// Add Comments
 		for _, c := range fileComments {
 			// Main comment item
@@ -283,7 +283,7 @@ func buildCommentTree(comments []*github.ReviewComment) []BrowseItem {
 			})
 		}
 	}
-	
+
 	return items
 }
 
@@ -302,7 +302,7 @@ func (r *browseItemRenderer) Title(item BrowseItem) string {
 		}
 		return ui.Colorize(ui.ColorCyan, fmt.Sprintf("%s 📂 %s", icon, item.Path))
 	}
-	
+
 	if item.IsPreview {
 		// Show truncated body for preview item
 		body := ui.StripSuggestionBlock(item.Comment.Body)
@@ -333,11 +333,11 @@ func (r *browseItemRenderer) Preview(item BrowseItem) string {
 	if item.Type == "file" {
 		return fmt.Sprintf("File: %s\n\nSelect a comment below to view details.", item.Path)
 	}
-	
+
 	// Reuse the logic from browseCommentRenderer but adapted for BrowseItem
 	comment := item.Comment
 	var preview strings.Builder
-	maxLines := 20 
+	maxLines := 20
 
 	// Header
 	status := "unresolved"
