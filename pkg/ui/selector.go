@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +35,8 @@ type ItemRenderer[T any] interface {
 // CustomAction is a function that handles custom actions on items
 type CustomAction[T any] func(item T) (string, error)
 
+var ErrNoSelection = errors.New("no selection made")
+
 // SelectionModel is the tea.Model for interactive selection
 type SelectionModel[T any] struct {
 	list         list.Model
@@ -41,7 +44,7 @@ type SelectionModel[T any] struct {
 	result       []T
 	windowSize   tea.WindowSizeMsg
 	customAction CustomAction[T]
-	actionKey    string // Key binding description for custom action (e.g., "ctrl+r resolve")
+	actionKey    string // Key binding description for custom action (e.g., "r resolve")
 	onOpen       CustomAction[T]
 	viewport     viewport.Model
 	showDetail   bool
@@ -77,7 +80,7 @@ func SelectFromList[T any](items []T, renderer ItemRenderer[T]) (T, error) {
 }
 
 // SelectFromListWithAction creates an interactive selector with a custom action
-// The customAction is triggered by Ctrl+R, and actionKey describes the action in the help text
+// The customAction is triggered by r, and actionKey describes the action in the help text
 func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], customAction CustomAction[T], actionKey string, onOpen CustomAction[T], filterFunc func(T, bool) bool, onSelect CustomAction[T]) (T, error) {
 	// Convert items to list items
 	listItems := make([]list.Item, len(items))
@@ -105,6 +108,11 @@ func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], custom
 		onSelect:     onSelect,
 	}
 
+	if filterFunc != nil {
+		m.filterActive = true
+		m.updateVisibleItems()
+	}
+
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	finalModel, err := p.Run()
 	if err != nil {
@@ -113,7 +121,7 @@ func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], custom
 
 	m = finalModel.(*SelectionModel[T])
 	if len(m.result) == 0 {
-		return *new(T), fmt.Errorf("no selection made")
+		return *new(T), ErrNoSelection
 	}
 
 	return m.result[0], nil
@@ -277,7 +285,7 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
-		case "ctrl+r":
+		case "r":
 			// Custom action (e.g., resolve)
 			if m.customAction != nil {
 				selected := m.list.SelectedItem()
@@ -375,7 +383,7 @@ func (m *SelectionModel[T]) View() string {
 	var helpText string
 	if !m.showHelp {
 		// Compact view
-		helpText = "↑/↓ navigate • enter details • o open • h show/hide resolved  • q quit • ? more"
+		helpText = "↑/↓ navigate • enter details • o open • r resolve • h show/hide resolved • q quit • ? more"
 	} else {
 		// Expanded view
 		helpText = "↑/↓ navigate • enter details • q quit • ? less\n"
@@ -386,7 +394,7 @@ func (m *SelectionModel[T]) View() string {
 		}
 		extraCommands = append(extraCommands, "ctrl+e edit")
 		if m.filterFunc != nil {
-			extraCommands = append(extraCommands, "h toggle resolved")
+			extraCommands = append(extraCommands, "h toggle show resolved")
 		}
 		if m.customAction != nil && m.actionKey != "" {
 			extraCommands = append(extraCommands, m.actionKey)

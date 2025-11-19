@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -119,8 +120,11 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 			return "SHOW_DETAIL", nil
 		}
 
-		selected, err := ui.SelectFromListWithAction(browseItems, renderer, resolveAction, "ctrl+r resolve", openAction, filterFunc, onSelect)
+		selected, err := ui.SelectFromListWithAction(browseItems, renderer, resolveAction, "r resolve", openAction, filterFunc, onSelect)
 		if err != nil {
+			if errors.Is(err, ui.ErrNoSelection) {
+				return nil
+			}
 			return fmt.Errorf("selection cancelled: %w", err)
 		}
 
