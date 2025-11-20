@@ -341,7 +341,6 @@ func (r *browseItemRenderer) Preview(item BrowseItem) string {
 	// Reuse the logic from browseCommentRenderer but adapted for BrowseItem
 	comment := item.Comment
 	var preview strings.Builder
-	maxLines := 20
 
 	// Header
 	status := "unresolved"
@@ -358,31 +357,36 @@ func (r *browseItemRenderer) Preview(item BrowseItem) string {
 		preview.WriteString(ui.Colorize(ui.ColorYellow, "⚠️  OUTDATED\n"))
 	}
 
-	lines := strings.Count(preview.String(), "\n") + 1
-
-	// Comment body (truncated)
+	// Comment body (with markdown rendering, truncated to first 200 lines of source)
 	body := ui.StripSuggestionBlock(comment.Body)
-	if body != "" && lines < maxLines {
+	if body != "" {
 		preview.WriteString("\n--- Comment ---\n")
+
+		// Truncate very long comments before rendering to avoid slowness
 		bodyLines := strings.Split(body, "\n")
-		for _, line := range bodyLines {
-			if lines >= maxLines-2 {
-				preview.WriteString("...\n")
-				break
-			}
-			preview.WriteString(line + "\n")
-			lines++
+		if len(bodyLines) > 200 {
+			body = strings.Join(bodyLines[:200], "\n") + "\n\n...(truncated, content too long)"
 		}
+
+		// Try to render markdown
+		rendered, err := ui.RenderMarkdown(body)
+		if err == nil && rendered != "" {
+			preview.WriteString(rendered)
+		} else {
+			// Fallback to wrapped text
+			preview.WriteString(ui.WrapText(body, 80))
+		}
+		preview.WriteString("\n")
 	}
 
-	// Diff hunk/context (truncated with coloring)
-	if comment.DiffHunk != "" && lines < maxLines {
+	// Diff hunk/context (with coloring, limited to 8 lines for relevance)
+	if comment.DiffHunk != "" {
 		diffLines := strings.Split(comment.DiffHunk, "\n")
 		if len(diffLines) > 2 {
 			preview.WriteString(ui.Colorize(ui.ColorCyan, "\n--- Context ---\n"))
 			shown := 0
 			for _, line := range diffLines {
-				if lines >= maxLines-2 || shown >= 8 {
+				if shown >= 8 {
 					preview.WriteString(ui.Colorize(ui.ColorGray, "...\n"))
 					break
 				}
@@ -400,27 +404,32 @@ func (r *browseItemRenderer) Preview(item BrowseItem) string {
 					}
 				}
 				preview.WriteString(coloredLine + "\n")
-				lines++
 				shown++
 			}
 		}
 	}
 
-	// Thread replies
-	if len(comment.ThreadComments) > 0 && lines < maxLines {
+	// Thread replies (with markdown rendering, truncated to first 100 lines each)
+	if len(comment.ThreadComments) > 0 {
 		preview.WriteString("\n--- Replies ---\n")
 		for i, threadComment := range comment.ThreadComments {
-			if lines >= maxLines-1 {
-				preview.WriteString("...\n")
-				break
-			}
 			preview.WriteString(fmt.Sprintf("Reply %d by @%s:\n", i+1, threadComment.Author))
-			lines++
-			replyLines := strings.Split(threadComment.Body, "\n")
-			if len(replyLines) > 0 && lines < maxLines {
-				preview.WriteString(replyLines[0] + "\n")
-				lines++
+
+			// Truncate very long replies before rendering to avoid slowness
+			replyBody := threadComment.Body
+			replyLines := strings.Split(replyBody, "\n")
+			if len(replyLines) > 100 {
+				replyBody = strings.Join(replyLines[:100], "\n") + "\n\n...(truncated, content too long)"
 			}
+
+			// Render reply body with markdown
+			rendered, err := ui.RenderMarkdown(replyBody)
+			if err == nil && rendered != "" {
+				preview.WriteString(rendered)
+			} else {
+				preview.WriteString(ui.WrapText(replyBody, 80))
+			}
+			preview.WriteString("\n")
 		}
 	}
 

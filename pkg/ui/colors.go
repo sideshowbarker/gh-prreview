@@ -88,11 +88,20 @@ func RenderMarkdown(text string) (string, error) {
 		return "", nil
 	}
 
-	// Create a glamour renderer with dark style
+	// Create a glamour renderer
+	// Try auto-style first
 	r, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(80),
 	)
+
+	// If auto-style fails, fallback to dark style
+	if err != nil {
+		r, err = glamour.NewTermRenderer(
+			glamour.WithStandardStyle("dark"),
+			glamour.WithWordWrap(80),
+		)
+	}
 	if err != nil {
 		// Fallback to plain text if rendering fails
 		return text, nil

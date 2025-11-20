@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -242,9 +243,19 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if msg == "SHOW_DETAIL" {
 						// Show detail view
 						m.showDetail = true
+
+						previewStart := time.Now()
 						content := item.item.Preview(item.value)
+						fmt.Fprintf(os.Stderr, "[DEBUG] Preview() call took %v\n", time.Since(previewStart))
+
+						wrapStart := time.Now()
 						wrappedContent := WrapText(content, m.viewport.Width)
+						fmt.Fprintf(os.Stderr, "[DEBUG] WrapText() took %v, content length: %d\n", time.Since(wrapStart), len(content))
+
+						setContentStart := time.Now()
 						m.viewport.SetContent(wrappedContent)
+						fmt.Fprintf(os.Stderr, "[DEBUG] viewport.SetContent() took %v\n", time.Since(setContentStart))
+
 						m.viewport.GotoTop()
 						return m, nil
 					}
@@ -263,10 +274,19 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.onOpen != nil {
 					// Browse mode: Show Detail
 					m.showDetail = true
+
+					previewStart := time.Now()
 					content := item.item.Preview(item.value)
-					// Wrap content to viewport width
+					fmt.Fprintf(os.Stderr, "[DEBUG] Preview() call took %v\n", time.Since(previewStart))
+
+					wrapStart := time.Now()
 					wrappedContent := WrapText(content, m.viewport.Width)
+					fmt.Fprintf(os.Stderr, "[DEBUG] WrapText() took %v, content length: %d\n", time.Since(wrapStart), len(content))
+
+					setContentStart := time.Now()
 					m.viewport.SetContent(wrappedContent)
+					fmt.Fprintf(os.Stderr, "[DEBUG] viewport.SetContent() took %v\n", time.Since(setContentStart))
+
 					// Reset viewport position
 					m.viewport.GotoTop()
 					return m, nil
