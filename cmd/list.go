@@ -186,7 +186,7 @@ func displayComment(index, total int, comment *github.ReviewComment) {
 
 	// Show resolved status
 	if comment.IsResolved() {
-		fmt.Printf("\n%s\n", ui.Colorize(ui.ColorGreen, "✅ Resolved"))
+		fmt.Printf("\n%s\n", ui.Colorize(ui.ColorGreen, ui.EmojiText("✅ Resolved", "Resolved")))
 	}
 
 	// Show the review comment (without the suggestion block)

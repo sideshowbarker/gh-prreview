@@ -40,20 +40,22 @@ var ErrNoSelection = errors.New("no selection made")
 
 // SelectionModel is the tea.Model for interactive selection
 type SelectionModel[T any] struct {
-	list         list.Model
-	items        []T
-	result       []T
-	windowSize   tea.WindowSizeMsg
-	customAction CustomAction[T]
-	actionKey    string // Key binding description for custom action (e.g., "r resolve")
-	onOpen       CustomAction[T]
-	viewport     viewport.Model
-	showDetail   bool
-	filterFunc   func(T, bool) bool
-	filterActive bool
-	renderer     ItemRenderer[T]
-	showHelp     bool
-	onSelect     CustomAction[T]
+	list               list.Model
+	items              []T
+	result             []T
+	windowSize         tea.WindowSizeMsg
+	customAction       CustomAction[T]
+	actionKey          string // Key binding description for custom action (e.g., "r resolve")
+	customActionSecond CustomAction[T]
+	actionKeySecond    string // Key binding description for second custom action (e.g., "R resolve+comment")
+	onOpen             CustomAction[T]
+	viewport           viewport.Model
+	showDetail         bool
+	filterFunc         func(T, bool) bool
+	filterActive       bool
+	renderer           ItemRenderer[T]
+	showHelp           bool
+	onSelect           CustomAction[T]
 }
 
 // Item wraps a generic item for the list model
@@ -77,12 +79,12 @@ func (i listItem[T]) Description() string {
 // SelectFromList creates an interactive selector for a list of items
 // Returns selected items in order they were selected
 func SelectFromList[T any](items []T, renderer ItemRenderer[T]) (T, error) {
-	return SelectFromListWithAction(items, renderer, nil, "", nil, nil, nil)
+	return SelectFromListWithAction(items, renderer, nil, "", nil, nil, nil, nil, "")
 }
 
 // SelectFromListWithAction creates an interactive selector with a custom action
 // The customAction is triggered by r, and actionKey describes the action in the help text
-func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], customAction CustomAction[T], actionKey string, onOpen CustomAction[T], filterFunc func(T, bool) bool, onSelect CustomAction[T]) (T, error) {
+func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], customAction CustomAction[T], actionKey string, onOpen CustomAction[T], filterFunc func(T, bool) bool, onSelect CustomAction[T], customActionSecond CustomAction[T], actionKeySecond string) (T, error) {
 	// Convert items to list items
 	listItems := make([]list.Item, len(items))
 	for i, item := range items {
@@ -91,27 +93,36 @@ func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], custom
 
 	l := list.New(listItems, itemDelegate[T]{renderer}, 100, 20)
 
-	// Brighten the status bar when filtering so the "N filtered" text remains readable.
-	styles := list.DefaultStyles()
-	styles.StatusBarFilterCount = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252")). // Light gray for dark backgrounds
-		Bold(true)
-	styles.StatusBarActiveFilter = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("229")). // Brighter for the active filter value
-		Bold(true)
-	styles.StatusBar = styles.StatusBar.Foreground(lipgloss.Color("247"))
+	colorOn := ColorsEnabled()
+
+	var styles list.Styles
+	if colorOn {
+		// Brighten the status bar when filtering so the "N filtered" text remains readable.
+		styles = list.DefaultStyles()
+		styles.StatusBarFilterCount = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252")). // Light gray for dark backgrounds
+			Bold(true)
+		styles.StatusBarActiveFilter = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("229")). // Brighter for the active filter value
+			Bold(true)
+		styles.StatusBar = styles.StatusBar.Foreground(lipgloss.Color("247"))
+	} else {
+		styles = list.Styles{}
+	}
 	l.Styles = styles
 
 	// Make the filter bar high-contrast so typed text is visible.
 	l.FilterInput.Prompt = "Filter: "
-	l.FilterInput.PromptStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("229")). // yellow-leaning white
-		Bold(true)
-	l.FilterInput.TextStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("231")) // white text while typing
-	l.FilterInput.Cursor.Style = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("213")). // bright magenta cursor
-		Bold(true)
+	if colorOn {
+		l.FilterInput.PromptStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("229")). // yellow-leaning white
+			Bold(true)
+		l.FilterInput.TextStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("231")) // white text while typing
+		l.FilterInput.Cursor.Style = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("213")). // bright magenta cursor
+			Bold(true)
+	}
 	l.SetShowFilter(true)
 
 	l.Title = "Select an item"
@@ -121,16 +132,18 @@ func SelectFromListWithAction[T any](items []T, renderer ItemRenderer[T], custom
 	l.SetShowHelp(false)
 
 	m := &SelectionModel[T]{
-		list:         l,
-		items:        items,
-		result:       make([]T, 0),
-		customAction: customAction,
-		actionKey:    actionKey,
-		onOpen:       onOpen,
-		viewport:     viewport.New(0, 0),
-		filterFunc:   filterFunc,
-		renderer:     renderer,
-		onSelect:     onSelect,
+		list:               l,
+		items:              items,
+		result:             make([]T, 0),
+		customAction:       customAction,
+		actionKey:          actionKey,
+		customActionSecond: customActionSecond,
+		actionKeySecond:    actionKeySecond,
+		onOpen:             onOpen,
+		viewport:           viewport.New(0, 0),
+		filterFunc:         filterFunc,
+		renderer:           renderer,
+		onSelect:           onSelect,
 	}
 
 	if filterFunc != nil {
@@ -365,6 +378,25 @@ func (m *SelectionModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		case "R":
+			// Secondary custom action (e.g., resolve with comment)
+			if m.customActionSecond != nil {
+				selected := m.list.SelectedItem()
+				if selected != nil {
+					item := selected.(listItem[T])
+					msg, err := m.customActionSecond(item.value)
+					if err != nil {
+						return m, m.list.NewStatusMessage(Colorize(ColorRed, err.Error()))
+					}
+					// Force update of the item in the list to reflect changes
+					m.list.SetItem(m.list.Index(), item)
+
+					if msg != "" {
+						return m, m.list.NewStatusMessage(msg)
+					}
+				}
+			}
+			return m, nil
 		case "right", "l":
 			// Also allow right arrow or 'l' to enter detail view if in browse mode
 			if m.onOpen != nil {
@@ -437,14 +469,17 @@ func (m *SelectionModel[T]) View() string {
 	}
 
 	// Help text
-	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252")). // Brighter gray for better visibility
-		Italic(true)
+	helpStyle := lipgloss.NewStyle()
+	if ColorsEnabled() {
+		helpStyle = helpStyle.
+			Foreground(lipgloss.Color("252")). // Brighter gray for better visibility
+			Italic(true)
+	}
 
 	var helpText string
 	if !m.showHelp {
 		// Compact view
-		helpText = "↑/↓ navigate • enter details • o open • r resolve • h show/hide resolved • / search • q quit • ? help"
+		helpText = "↑/↓ navigate • enter details • o open • r resolve • R resolve+comment • h show/hide resolved • / search • q quit • ? help"
 	} else {
 		helpText = ""
 	}
@@ -452,9 +487,12 @@ func (m *SelectionModel[T]) View() string {
 	help := helpStyle.Render(helpText)
 
 	// Top section with title
-	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("36")).
-		Bold(true)
+	titleStyle := lipgloss.NewStyle()
+	if ColorsEnabled() {
+		titleStyle = titleStyle.
+			Foreground(lipgloss.Color("36")).
+			Bold(true)
+	}
 	title := titleStyle.Render("Select a comment")
 
 	// Combine: title + list
@@ -513,10 +551,19 @@ func (m *SelectionModel[T]) renderHelpOverlay() string {
 		entries = append(entries, entry{key, desc})
 	}
 
+	if m.customActionSecond != nil && m.actionKeySecond != "" {
+		key, desc := splitActionKey(m.actionKeySecond)
+		entries = append(entries, entry{key, desc})
+	}
+
 	entries = append(entries, entry{"/", "Search"})
 
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("207")).Bold(true)
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	keyStyle := lipgloss.NewStyle()
+	descStyle := lipgloss.NewStyle()
+	if ColorsEnabled() {
+		keyStyle = keyStyle.Foreground(lipgloss.Color("207")).Bold(true)
+		descStyle = descStyle.Foreground(lipgloss.Color("252"))
+	}
 	keyCell := lipgloss.NewStyle().Width(12).Align(lipgloss.Right)
 
 	var rows []string
@@ -529,8 +576,14 @@ func (m *SelectionModel[T]) renderHelpOverlay() string {
 		))
 	}
 
-	title := lipgloss.NewStyle().Foreground(lipgloss.Color("36")).Bold(true).Render("Help")
-	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Press ? to return")
+	titleStyle := lipgloss.NewStyle()
+	subtitleStyle := lipgloss.NewStyle()
+	if ColorsEnabled() {
+		titleStyle = titleStyle.Foreground(lipgloss.Color("36")).Bold(true)
+		subtitleStyle = subtitleStyle.Foreground(lipgloss.Color("245"))
+	}
+	title := titleStyle.Render("Help")
+	subtitle := subtitleStyle.Render("Press ? to return")
 
 	body := lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -548,12 +601,15 @@ func (m *SelectionModel[T]) renderHelpOverlay() string {
 		boxWidth = width - 2
 	}
 
-	box := lipgloss.NewStyle().
+	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
 		Padding(1, 2).
-		Width(boxWidth).
-		Render(body)
+		Width(boxWidth)
+	if ColorsEnabled() {
+		boxStyle = boxStyle.BorderForeground(lipgloss.Color("240"))
+	}
+
+	box := boxStyle.Render(body)
 
 	return lipgloss.Place(
 		width,
@@ -601,39 +657,52 @@ func (d itemDelegate[T]) Render(w io.Writer, m list.Model, index int, item list.
 
 	var s strings.Builder
 
-	if isSelected {
-		// Cursor
-		s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("▶ "))
+	if ColorsEnabled() {
+		if isSelected {
+			// Cursor
+			s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("▶ "))
 
-		// Selected Item Style
-		// We use a background color to make it prominent
-		selectedBg := lipgloss.Color("57")  // Indigo/Purple
-		selectedFg := lipgloss.Color("255") // White
+			// Selected Item Style
+			// We use a background color to make it prominent
+			selectedBg := lipgloss.Color("57")  // Indigo/Purple
+			selectedFg := lipgloss.Color("255") // White
 
-		titleStyle := lipgloss.NewStyle().
-			Foreground(selectedFg).
-			Background(selectedBg).
-			Bold(true)
+			titleStyle := lipgloss.NewStyle().
+				Foreground(selectedFg).
+				Background(selectedBg).
+				Bold(true)
 
-		s.WriteString(titleStyle.Render(title))
+			s.WriteString(titleStyle.Render(title))
 
-		if desc != "" {
-			descStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("252")). // Slightly dimmer than white
-				Background(selectedBg)
-			s.WriteString(descStyle.Render(" " + desc))
+			if desc != "" {
+				descStyle := lipgloss.NewStyle().
+					Foreground(lipgloss.Color("252")). // Slightly dimmer than white
+					Background(selectedBg)
+				s.WriteString(descStyle.Render(" " + desc))
+			}
+		} else {
+			// Unselected
+			s.WriteString("  ")
+
+			titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
+			s.WriteString(titleStyle.Render(title))
+
+			if desc != "" {
+				s.WriteString(" ")
+				descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("248"))
+				s.WriteString(descStyle.Render(desc))
+			}
 		}
 	} else {
-		// Unselected
-		s.WriteString("  ")
-
-		titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-		s.WriteString(titleStyle.Render(title))
-
+		// Plain rendering without ANSI styling
+		prefix := "  "
+		if isSelected {
+			prefix = "> "
+		}
+		s.WriteString(prefix)
+		s.WriteString(title)
 		if desc != "" {
-			s.WriteString(" ")
-			descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("248"))
-			s.WriteString(descStyle.Render(desc))
+			s.WriteString(" " + desc)
 		}
 	}
 

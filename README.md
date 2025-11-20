@@ -27,6 +27,10 @@ gh extension install .
 
 ## Commands
 
+### Color control
+
+Pass `--no-color` or set `NO_COLOR=1` to disable ANSI colors, emojis, and OSC8 hyperlinks in all output (including interactive views).
+
 ### List
 
 Fetch unresolved comments for the current PR (or pass `[PR_NUMBER] [THREAD_ID]`).

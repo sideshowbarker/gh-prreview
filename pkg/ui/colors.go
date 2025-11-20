@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
+	"github.com/muesli/termenv"
 )
 
 const (
@@ -18,8 +20,34 @@ const (
 	ColorGray   = "\033[90m"
 )
 
+var colorEnabled = true
+
+// SetColorEnabled toggles ANSI color output across the UI helpers.
+func SetColorEnabled(enabled bool) {
+	colorEnabled = enabled
+	if !enabled {
+		lipgloss.SetColorProfile(termenv.Ascii)
+	}
+}
+
+// ColorsEnabled reports whether ANSI colors are enabled.
+func ColorsEnabled() bool {
+	return colorEnabled
+}
+
+// EmojiText returns emojiText when colors/emoji are enabled, otherwise the plain fallback.
+func EmojiText(emojiText, plainText string) string {
+	if !colorEnabled {
+		return plainText
+	}
+	return emojiText
+}
+
 // Colorize applies ANSI color codes to text
 func Colorize(color, text string) string {
+	if !colorEnabled {
+		return text
+	}
 	return color + text + ColorReset
 }
 
@@ -56,6 +84,9 @@ func ColorizeCode(code string) string {
 
 // CreateHyperlink creates an OSC8 hyperlink
 func CreateHyperlink(url, text string) string {
+	if !colorEnabled {
+		return text
+	}
 	if url == "" {
 		return text
 	}
@@ -86,6 +117,10 @@ func WrapText(text string, width int) string {
 func RenderMarkdown(text string) (string, error) {
 	if text == "" {
 		return "", nil
+	}
+
+	if !colorEnabled {
+		return strings.TrimSpace(text), nil
 	}
 
 	// Create a glamour renderer
@@ -152,11 +187,16 @@ func NewAuthorStyle(author string) *AuthorStyle {
 
 // Format returns the formatted author string with color (colored "@authorname").
 func (as *AuthorStyle) Format(includeIcon bool) string {
-	icon := "👤"
-	if as.IsBot {
-		icon = "🤖"
+	if includeIcon {
+		icon := EmojiText("👤", "")
+		if as.IsBot {
+			icon = EmojiText("🤖", "")
+		}
+		if icon != "" {
+			return fmt.Sprintf("%s %s", icon, Colorize(as.Color, "@"+as.Name))
+		}
 	}
-	return fmt.Sprintf("%s %s", icon, Colorize(as.Color, "@"+as.Name))
+	return Colorize(as.Color, "@"+as.Name)
 }
 
 // ============================================================================
@@ -194,7 +234,10 @@ func NewStatusStyle(isResolved bool) *StatusStyle {
 // When includeEmoji is true, the emoji indicator is prepended to the status.
 func (ss *StatusStyle) Format(includeEmoji bool) string {
 	if includeEmoji {
-		return fmt.Sprintf("%s %s", ss.Emoji, Colorize(ss.Color, ss.Label))
+		emoji := EmojiText(ss.Emoji, "")
+		if emoji != "" {
+			return fmt.Sprintf("%s %s", emoji, Colorize(ss.Color, ss.Label))
+		}
 	}
 	return Colorize(ss.Color, ss.Label)
 }
@@ -259,7 +302,7 @@ func (rls *ReviewListStyle) FormatSuggestionDescription(hasSuggestion bool, isOu
 	}
 
 	if isOutdated {
-		parts = append(parts, Colorize(ColorYellow, "⚠️ OUTDATED"))
+		parts = append(parts, Colorize(ColorYellow, EmojiText("⚠️ OUTDATED", "OUTDATED")))
 	}
 
 	parts = append(parts, rls.Status.Format(true))

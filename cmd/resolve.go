@@ -127,14 +127,14 @@ func resolveCommentText(text string) (string, error) {
 
 func addCommentToReview(client *github.Client, prNumber int, commentID int64, commentBody string, commentLink string) error {
 	if _, err := client.ReplyToReviewComment(prNumber, commentID, commentBody); err != nil {
-		fmt.Printf("%s Failed to add comment to %s: %v\\n",
-			ui.Colorize(ui.ColorRed, "❌"),
+		fmt.Printf("%sFailed to add comment to %s: %v\\n",
+			ui.Colorize(ui.ColorRed, ui.EmojiText("❌ ", "")),
 			ui.Colorize(ui.ColorCyan, commentLink),
 			ui.Colorize(ui.ColorRed, err.Error()))
 		return err
 	}
-	fmt.Printf("%s Comment added to %s\\n",
-		ui.Colorize(ui.ColorGreen, "✓"),
+	fmt.Printf("%sComment added to %s\\n",
+		ui.Colorize(ui.ColorGreen, ui.EmojiText("✓ ", "")),
 		ui.Colorize(ui.ColorCyan, commentLink))
 	return nil
 }
@@ -231,27 +231,27 @@ func resolveAllComments(client *github.Client, prNumber int) error {
 		}
 		if resolveUnresolve {
 			if err := client.UnresolveThread(comment.ThreadID); err != nil {
-				fmt.Printf("%s Failed to unresolve %s: %v\n",
-					ui.Colorize(ui.ColorRed, "❌"),
+				fmt.Printf("%sFailed to unresolve %s: %v\n",
+					ui.Colorize(ui.ColorRed, ui.EmojiText("❌ ", "")),
 					ui.Colorize(ui.ColorCyan, commentLink),
 					ui.Colorize(ui.ColorRed, err.Error()))
 				errorCount++
 			} else {
-				fmt.Printf("%s %s marked as unresolved\n",
-					ui.Colorize(ui.ColorYellow, "✓"),
+				fmt.Printf("%s%s marked as unresolved\n",
+					ui.Colorize(ui.ColorYellow, ui.EmojiText("✓ ", "")),
 					ui.Colorize(ui.ColorCyan, commentLink))
 				successCount++
 			}
 		} else {
 			if err := client.ResolveThread(comment.ThreadID); err != nil {
-				fmt.Printf("%s Failed to resolve %s: %v\n",
-					ui.Colorize(ui.ColorRed, "❌"),
+				fmt.Printf("%sFailed to resolve %s: %v\n",
+					ui.Colorize(ui.ColorRed, ui.EmojiText("❌ ", "")),
 					ui.Colorize(ui.ColorCyan, commentLink),
 					ui.Colorize(ui.ColorRed, err.Error()))
 				errorCount++
 			} else {
-				fmt.Printf("%s %s marked as resolved\n",
-					ui.Colorize(ui.ColorGreen, "✓"),
+				fmt.Printf("%s%s marked as resolved\n",
+					ui.Colorize(ui.ColorGreen, ui.EmojiText("✓ ", "")),
 					ui.Colorize(ui.ColorCyan, commentLink))
 				successCount++
 			}
@@ -296,8 +296,8 @@ func resolveIndividualComment(client *github.Client, prNumber int, commentID int
 		}
 		if err := addCommentToReview(client, prNumber, commentID, commentText, commentLink); err != nil {
 			// Log the error but continue to resolve/unresolve the thread
-			fmt.Printf("%s Failed to add comment to %s: %v\n",
-				ui.Colorize(ui.ColorRed, "❌"),
+			fmt.Printf("%sFailed to add comment to %s: %v\n",
+				ui.Colorize(ui.ColorRed, ui.EmojiText("❌ ", "")),
 				ui.Colorize(ui.ColorCyan, commentLink),
 				ui.Colorize(ui.ColorRed, err.Error()))
 		}
@@ -307,15 +307,15 @@ func resolveIndividualComment(client *github.Client, prNumber int, commentID int
 		if err := client.UnresolveThread(threadID); err != nil {
 			return fmt.Errorf("failed to unresolve thread: %w", err)
 		}
-		fmt.Printf("%s Thread for %s marked as unresolved\n",
-			ui.Colorize(ui.ColorYellow, "✓"),
+		fmt.Printf("%sThread for %s marked as unresolved\n",
+			ui.Colorize(ui.ColorYellow, ui.EmojiText("✓ ", "")),
 			ui.Colorize(ui.ColorCyan, commentLink))
 	} else {
 		if err := client.ResolveThread(threadID); err != nil {
 			return fmt.Errorf("failed to resolve thread: %w", err)
 		}
-		fmt.Printf("%s Thread for %s marked as resolved\n",
-			ui.Colorize(ui.ColorGreen, "✓"),
+		fmt.Printf("%sThread for %s marked as resolved\n",
+			ui.Colorize(ui.ColorGreen, ui.EmojiText("✓ ", "")),
 			ui.Colorize(ui.ColorCyan, commentLink))
 	}
 

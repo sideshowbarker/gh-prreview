@@ -59,12 +59,12 @@ func (a *Applier) ApplyAll(suggestions []*github.ReviewComment) error {
 
 	for _, suggestion := range suggestions {
 		if err := a.applySuggestion(suggestion); err != nil {
-			fmt.Printf("❌ Failed to apply suggestion for %s:%d: %v\n",
-				suggestion.Path, suggestion.Line, err)
+			fmt.Printf("%sFailed to apply suggestion for %s:%d: %v\n",
+				ui.EmojiText("❌ ", ""), suggestion.Path, suggestion.Line, err)
 			failed++
 		} else {
-			fmt.Printf("✅ Applied suggestion to %s:%d\n",
-				suggestion.Path, suggestion.Line)
+			fmt.Printf("%sApplied suggestion to %s:%d\n",
+				ui.EmojiText("✅ ", ""), suggestion.Path, suggestion.Line)
 			applied++
 
 			// Show git diff of what was applied
@@ -102,35 +102,35 @@ func (a *Applier) ApplyInteractive(suggestions []*github.ReviewComment) error {
 		switch action {
 		case "apply":
 			if err := a.applySuggestion(selected); err != nil {
-				fmt.Printf("❌ Failed to apply: %v\n", err)
+				fmt.Printf("%sFailed to apply: %v\n", ui.EmojiText("❌ ", ""), err)
 				skipped++
 			} else {
-				fmt.Printf("✅ Applied\n")
+				fmt.Printf("%sApplied\n", ui.EmojiText("✅ ", ""))
 				applied++
 				a.showGitDiff(selected.Path)
 				a.promptToResolveThread(selected)
 			}
 		case "ai":
 			if a.aiProvider == nil {
-				fmt.Printf("❌ AI provider not configured\n")
+				fmt.Printf("%sAI provider not configured\n", ui.EmojiText("❌ ", ""))
 				skipped++
 			} else {
 				if err := a.applyWithAI(selected, false); err != nil {
 					if err == errEditApplied {
 						applied++
 					} else {
-						fmt.Printf("❌ AI application failed: %v\n", err)
+						fmt.Printf("%sAI application failed: %v\n", ui.EmojiText("❌ ", ""), err)
 						skipped++
 					}
 				} else {
-					fmt.Printf("✅ Applied with AI\n")
+					fmt.Printf("%sApplied with AI\n", ui.EmojiText("✅ ", ""))
 					applied++
 					a.showGitDiff(selected.Path)
 					a.promptToResolveThread(selected)
 				}
 			}
 		case "skip":
-			fmt.Printf("⏭️  Skipped\n")
+			fmt.Printf("%sSkipped\n", ui.EmojiText("⏭️  ", ""))
 			skipped++
 		case "quit":
 			fmt.Printf("\nStopped. Applied %d/%d suggestions\n", applied, len(suggestions))
@@ -161,7 +161,7 @@ func (a *Applier) showSuggestionDetails(suggestion *github.ReviewComment, index,
 
 	header := fmt.Sprintf("[%d/%d] %s by @%s", index, total, clickableLocation, suggestion.Author)
 	if suggestion.IsOutdated {
-		header += ui.Colorize(ui.ColorYellow, " ⚠️  OUTDATED")
+		header += ui.Colorize(ui.ColorYellow, ui.EmojiText(" ⚠️  OUTDATED", " OUTDATED"))
 	}
 	fmt.Printf("\n%s\n", ui.Colorize(ui.ColorCyan, header))
 	fmt.Printf("%s\n", ui.Colorize(ui.ColorGray, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"))
@@ -235,13 +235,13 @@ func (a *Applier) promptForAction() string {
 			if a.aiProvider != nil {
 				return "ai"
 			}
-			fmt.Printf("❌ AI provider not configured, please choose again\n")
+			fmt.Printf("%sAI provider not configured, please choose again\n", ui.EmojiText("❌ ", ""))
 		case "s", "skip", "n", "no", "":
 			return "skip"
 		case "q", "quit":
 			return "quit"
 		default:
-			fmt.Printf("⏭️  Unrecognized input, skipping\n")
+			fmt.Printf("%sUnrecognized input, skipping\n", ui.EmojiText("⏭️  ", ""))
 			return "skip"
 		}
 	}
@@ -492,8 +492,15 @@ func (a *Applier) saveMismatchDiff(comment *github.ReviewComment, fileLines []st
 
 // showGitDiff shows the git diff for a file after applying changes
 func (a *Applier) showGitDiff(filePath string) {
-	// Execute git diff with color
-	cmd := exec.Command("git", "diff", "--color=always", filePath)
+	args := []string{"diff"}
+	if ui.ColorsEnabled() {
+		args = append(args, "--color=always")
+	} else {
+		args = append(args, "--color=never")
+	}
+	args = append(args, filePath)
+
+	cmd := exec.Command("git", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		// Don't fail, just skip showing diff
@@ -537,7 +544,7 @@ func (a *Applier) applyWithAI(comment *github.ReviewComment, autoApply bool) err
 
 	providerName := a.aiProvider.Name()
 	modelName := a.aiProvider.Model()
-	fmt.Printf("\n🤖 %s\n", ui.Colorize(ui.ColorCyan, fmt.Sprintf("Using AI to apply suggestion (%s/%s)...", providerName, modelName)))
+	fmt.Printf("\n%s%s\n", ui.EmojiText("🤖 ", ""), ui.Colorize(ui.ColorCyan, fmt.Sprintf("Using AI to apply suggestion (%s/%s)...", providerName, modelName)))
 
 	// Create and start spinner
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
@@ -559,7 +566,7 @@ func (a *Applier) applyWithAI(comment *github.ReviewComment, autoApply bool) err
 	fmt.Printf("%s\n", resp.Explanation)
 
 	if len(resp.Warnings) > 0 {
-		fmt.Printf("\n%s\n", ui.Colorize(ui.ColorYellow, "⚠️  Warnings:"))
+		fmt.Printf("\n%s\n", ui.Colorize(ui.ColorYellow, ui.EmojiText("⚠️  Warnings:", "Warnings:")))
 		for _, warning := range resp.Warnings {
 			fmt.Printf("  • %s\n", warning)
 		}
@@ -596,7 +603,7 @@ func (a *Applier) applyWithAI(comment *github.ReviewComment, autoApply bool) err
 			case "e", "edit":
 				// Apply patch and open file for editing
 				if err := a.applyPatchAndEditFile(patchToApply, comment.Path, comment); err != nil {
-					fmt.Printf("❌ Failed to apply and edit: %v\n", err)
+					fmt.Printf("%sFailed to apply and edit: %v\n", ui.EmojiText("❌ ", ""), err)
 					// Ask if they want to try with original patch
 					fmt.Printf("Try applying without editing? [y/n] ")
 					continueResp, _ := reader.ReadString('\n')
@@ -654,7 +661,7 @@ func (a *Applier) applyPatchAndEditFile(patch string, filePath string, comment *
 		return fmt.Errorf("failed to apply patch: %w\nOutput: %s", err, string(output))
 	}
 
-	fmt.Printf("✅ Patch applied. Opening file for additional edits...\n")
+	fmt.Printf("%sPatch applied. Opening file for additional edits...\n", ui.EmojiText("✅ ", ""))
 
 	// Get editor from environment, default to vi
 	editor := os.Getenv("EDITOR")
@@ -671,11 +678,11 @@ func (a *Applier) applyPatchAndEditFile(patch string, filePath string, comment *
 
 	if err := editorCmd.Run(); err != nil {
 		// Editor failed, revert the patch
-		fmt.Printf("❌ Editor exited with error: %v\n", err)
+		fmt.Printf("%sEditor exited with error: %v\n", ui.EmojiText("❌ ", ""), err)
 		fmt.Printf("Reverting changes...\n")
 		revertCmd := exec.Command("git", "checkout", "--", filePath)
 		if revertErr := revertCmd.Run(); revertErr != nil {
-			fmt.Printf("❌ Failed to revert changes: %v\n", revertErr)
+			fmt.Printf("%sFailed to revert changes: %v\n", ui.EmojiText("❌ ", ""), revertErr)
 			return fmt.Errorf("editor failed and revert failed: %w", revertErr)
 		}
 		return fmt.Errorf("editor failed")
@@ -693,7 +700,7 @@ func (a *Applier) applyPatchAndEditFile(patch string, filePath string, comment *
 		// Revert on error
 		revertCmd := exec.Command("git", "checkout", "--", filePath)
 		if revertErr := revertCmd.Run(); revertErr != nil {
-			fmt.Printf("❌ Failed to revert changes: %v\n", revertErr)
+			fmt.Printf("%sFailed to revert changes: %v\n", ui.EmojiText("❌ ", ""), revertErr)
 			return fmt.Errorf("failed to revert changes: %w", revertErr)
 		}
 		return fmt.Errorf("failed to read input: %w", err)
@@ -707,11 +714,11 @@ func (a *Applier) applyPatchAndEditFile(patch string, filePath string, comment *
 		if err := revertCmd.Run(); err != nil {
 			return fmt.Errorf("failed to revert changes: %w", err)
 		}
-		fmt.Printf("❌ Changes reverted\n")
+		fmt.Printf("%sChanges reverted\n", ui.EmojiText("❌ ", ""))
 		return fmt.Errorf("changes discarded by user")
 	}
 
-	fmt.Printf("✅ Changes kept\n")
+	fmt.Printf("%sChanges kept\n", ui.EmojiText("✅ ", ""))
 
 	// Prompt to resolve thread
 	a.promptToResolveThread(comment)
@@ -741,9 +748,9 @@ func (a *Applier) promptToResolveThread(comment *github.ReviewComment) {
 	response = strings.ToLower(strings.TrimSpace(response))
 	if response == "y" || response == "yes" {
 		if err := a.githubClient.ResolveThread(comment.ThreadID); err != nil {
-			fmt.Printf("❌ Failed to resolve thread: %v\n", err)
+			fmt.Printf("%sFailed to resolve thread: %v\n", ui.EmojiText("❌ ", ""), err)
 		} else {
-			fmt.Printf("✅ Review thread marked as resolved\n")
+			fmt.Printf("%sReview thread marked as resolved\n", ui.EmojiText("✅ ", ""))
 		}
 	}
 }
@@ -764,10 +771,10 @@ func (a *Applier) ApplyAllWithAI(suggestions []*github.ReviewComment) error {
 			suggestion.Path, suggestion.Line, suggestion.Author)
 
 		if err := a.applyWithAI(suggestion, true); err != nil {
-			fmt.Printf("❌ Failed: %v\n", err)
+			fmt.Printf("%sFailed: %v\n", ui.EmojiText("❌ ", ""), err)
 			failed++
 		} else {
-			fmt.Printf("✅ Applied successfully\n")
+			fmt.Printf("%sApplied successfully\n", ui.EmojiText("✅ ", ""))
 			applied++
 
 			// Show git diff of what was applied
@@ -776,9 +783,9 @@ func (a *Applier) ApplyAllWithAI(suggestions []*github.ReviewComment) error {
 			// Automatically resolve thread when possible
 			if a.githubClient != nil && suggestion.ThreadID != "" && !suggestion.IsResolved() {
 				if err := a.githubClient.ResolveThread(suggestion.ThreadID); err != nil {
-					fmt.Printf("⚠️  Failed to auto-resolve thread: %v\n", err)
+					fmt.Printf("%sFailed to auto-resolve thread: %v\n", ui.EmojiText("⚠️  ", ""), err)
 				} else {
-					fmt.Printf("✅ Review thread auto-resolved\n")
+					fmt.Printf("%sReview thread auto-resolved\n", ui.EmojiText("✅ ", ""))
 				}
 			}
 		}
@@ -866,11 +873,11 @@ func (r *suggestionRenderer) Preview(comment *github.ReviewComment) string {
 	preview.WriteString(ui.Colorize(ui.ColorCyan, fmt.Sprintf("Status: %s\n", ui.Colorize(statusColor, status))))
 
 	if comment.IsOutdated {
-		preview.WriteString(ui.Colorize(ui.ColorYellow, "⚠️  OUTDATED\n"))
+		preview.WriteString(ui.Colorize(ui.ColorYellow, ui.EmojiText("⚠️  OUTDATED\n", "OUTDATED\n")))
 	}
 
 	if r.aiAvailable {
-		preview.WriteString(ui.Colorize(ui.ColorGreen, "🤖 AI available\n"))
+		preview.WriteString(ui.Colorize(ui.ColorGreen, ui.EmojiText("🤖 AI available\n", "AI available\n")))
 	}
 
 	lines := strings.Count(preview.String(), "\n") + 1

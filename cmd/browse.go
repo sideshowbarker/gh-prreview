@@ -74,12 +74,19 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 		// Convert comments to tree structure
 		browseItems := buildCommentTree(comments)
 
-		// Create resolve action
+		// Create resolve actions
 		resolveAction := func(item BrowseItem) (string, error) {
 			if item.Type == "file" {
 				return "", nil // Cannot resolve a file header
 			}
 			return resolveCommentAction(client, prNumber, item.Comment)
+		}
+
+		resolveWithCommentAction := func(item BrowseItem) (string, error) {
+			if item.Type == "file" {
+				return "", nil // Cannot resolve a file header
+			}
+			return resolveCommentWithNoteAction(client, prNumber, item.Comment)
 		}
 
 		// Create open action (on 'o')
@@ -120,7 +127,7 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 			return "SHOW_DETAIL", nil
 		}
 
-		selected, err := ui.SelectFromListWithAction(browseItems, renderer, resolveAction, "r resolve", openAction, filterFunc, onSelect)
+		selected, err := ui.SelectFromListWithAction(browseItems, renderer, resolveAction, "r resolve", openAction, filterFunc, onSelect, resolveWithCommentAction, "R resolve+comment")
 		if err != nil {
 			if errors.Is(err, ui.ErrNoSelection) {
 				return nil
@@ -301,10 +308,21 @@ type browseItemRenderer struct {
 func (r *browseItemRenderer) Title(item BrowseItem) string {
 	if item.Type == "file" {
 		icon := "▼"
-		if r.collapsedFiles != nil && r.collapsedFiles[item.Path] {
-			icon = "▶"
+		collapsedIcon := "▶"
+		folder := "📂"
+		if !ui.ColorsEnabled() {
+			icon = "-"
+			collapsedIcon = "+"
+			folder = ""
 		}
-		return ui.Colorize(ui.ColorCyan, fmt.Sprintf("%s 📂 %s", icon, item.Path))
+		if r.collapsedFiles != nil && r.collapsedFiles[item.Path] {
+			icon = collapsedIcon
+		}
+		title := fmt.Sprintf("%s %s", icon, item.Path)
+		if folder != "" {
+			title = fmt.Sprintf("%s %s %s", icon, folder, item.Path)
+		}
+		return ui.Colorize(ui.ColorCyan, strings.TrimSpace(title))
 	}
 
 	if item.IsPreview {
@@ -354,7 +372,7 @@ func (r *browseItemRenderer) Preview(item BrowseItem) string {
 	preview.WriteString(ui.Colorize(ui.ColorCyan, fmt.Sprintf("Status: %s\n", ui.Colorize(statusColor, status))))
 
 	if comment.IsOutdated {
-		preview.WriteString(ui.Colorize(ui.ColorYellow, "⚠️  OUTDATED\n"))
+		preview.WriteString(ui.Colorize(ui.ColorYellow, ui.EmojiText("⚠️  OUTDATED\n", "OUTDATED\n")))
 	}
 
 	// Comment body (with markdown rendering, truncated to first 200 lines of source)
@@ -375,6 +393,19 @@ func (r *browseItemRenderer) Preview(item BrowseItem) string {
 		} else {
 			// Fallback to wrapped text
 			preview.WriteString(ui.WrapText(body, 80))
+		}
+		preview.WriteString("\n")
+	}
+
+	// Suggested code (with syntax highlighting based on file type)
+	if comment.HasSuggestion && comment.SuggestedCode != "" {
+		preview.WriteString(ui.Colorize(ui.ColorCyan, "\n--- Suggested Code ---\n"))
+		lang := ui.CodeFenceLanguageFromPath(comment.Path)
+		md := fmt.Sprintf("```%s\n%s\n```", lang, comment.SuggestedCode)
+		if rendered, err := ui.RenderMarkdown(md); err == nil && rendered != "" {
+			preview.WriteString(rendered)
+		} else {
+			preview.WriteString(ui.Colorize(ui.ColorGreen, comment.SuggestedCode))
 		}
 		preview.WriteString("\n")
 	}
@@ -479,4 +510,33 @@ func resolveCommentAction(client *github.Client, prNumber int, comment *github.R
 		comment.SubjectType = "resolved"
 		return "Marked as resolved", nil
 	}
+}
+
+// resolveCommentWithNoteAction adds a comment before toggling resolved/unresolved state.
+func resolveCommentWithNoteAction(client *github.Client, prNumber int, comment *github.ReviewComment) (string, error) {
+	if comment.ThreadID == "" {
+		return "", fmt.Errorf("comment has no thread ID")
+	}
+
+	body, err := promptForCommentBody()
+	if err != nil {
+		return "", err
+	}
+
+	reply, err := client.ReplyToReviewComment(prNumber, comment.ID, body)
+	if err != nil {
+		return "", fmt.Errorf("failed to add comment: %w", err)
+	}
+
+	statusMsg, err := resolveCommentAction(client, prNumber, comment)
+	if err != nil {
+		return "", err
+	}
+
+	link := "comment"
+	if reply != nil && reply.HTMLURL != "" {
+		link = ui.CreateHyperlink(reply.HTMLURL, "comment")
+	}
+
+	return fmt.Sprintf("%s; added %s", statusMsg, link), nil
 }

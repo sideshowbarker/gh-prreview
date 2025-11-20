@@ -98,8 +98,8 @@ func runComment(cmd *cobra.Command, args []string) error {
 		link = fmt.Sprintf("https://github.com/%s/pull/%d#discussion_r%d", getRepoFromClient(client), prNumber, reply.ID)
 	}
 
-	fmt.Printf("%s Reply posted by @%s: %s\n",
-		ui.Colorize(ui.ColorGreen, "✓"),
+	fmt.Printf("%sReply posted by @%s: %s\n",
+		ui.Colorize(ui.ColorGreen, ui.EmojiText("✓ ", "")),
 		ui.Colorize(ui.ColorCyan, reply.Author),
 		ui.CreateHyperlink(link, fmt.Sprintf("comment %d", reply.ID)))
 
@@ -127,8 +127,8 @@ func runComment(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve thread: %w", err)
 		}
 
-		fmt.Printf("%s Thread marked as resolved\n",
-			ui.Colorize(ui.ColorGreen, "✓"))
+		fmt.Printf("%sThread marked as resolved\n",
+			ui.Colorize(ui.ColorGreen, ui.EmojiText("✓ ", "")))
 	}
 
 	return nil
