@@ -129,7 +129,6 @@ func RenderMarkdown(text string) (string, error) {
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(80),
 	)
-
 	// If auto-style fails, fallback to dark style
 	if err != nil {
 		r, err = glamour.NewTermRenderer(

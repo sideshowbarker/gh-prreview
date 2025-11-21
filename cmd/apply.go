@@ -57,7 +57,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 		client.SetRepo(repoFlag)
 	}
 
-	prNumber, err := getPRNumber(args, client)
+	prNumber, err := getPRNumberWithSelection(args, client)
 	if err != nil {
 		return err
 	}

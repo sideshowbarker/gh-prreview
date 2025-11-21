@@ -47,6 +47,17 @@ type ThreadComment struct {
 	HTMLURL string
 }
 
+// PullRequest represents a GitHub pull request with display-relevant fields
+type PullRequest struct {
+	Number         int
+	Title          string
+	Author         string
+	State          string
+	IsDraft        bool
+	HeadRefName    string
+	ReviewDecision string // APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, etc.
+}
+
 // IsResolved returns true if the comment thread has been marked as resolved/done
 func (rc *ReviewComment) IsResolved() bool {
 	return rc.SubjectType == "resolved"
@@ -242,6 +253,95 @@ func (c *Client) GetCurrentBranchPR() (int, error) {
 	}
 
 	return prNumber, nil
+}
+
+// ListOpenPRs fetches all open pull requests for the repository
+func (c *Client) ListOpenPRs() ([]*PullRequest, error) {
+	repo, err := c.getRepo()
+	if err != nil {
+		return nil, err
+	}
+
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repo format: %s", repo)
+	}
+	owner := parts[0]
+	name := parts[1]
+
+	c.debugLog("Fetching open PRs for %s", repo)
+
+	query := fmt.Sprintf(`
+		query {
+			repository(owner: "%s", name: "%s") {
+				pullRequests(first: 100, states: OPEN, orderBy: {field: CREATED_AT, direction: DESC}) {
+					nodes {
+						number
+						title
+						author {
+							login
+						}
+						isDraft
+						headRefName
+						reviewDecision
+					}
+				}
+			}
+		}
+	`, owner, name)
+
+	c.debugLog("GraphQL query: %s", query)
+
+	stdOut, _, err := gh.Exec("api", "graphql", "-f", fmt.Sprintf("query=%s", query))
+	if err != nil {
+		c.debugLog("GraphQL query failed: %v", err)
+		return nil, fmt.Errorf("failed to fetch pull requests: %w", err)
+	}
+
+	c.debugLog("GraphQL response length: %d bytes", len(stdOut.Bytes()))
+
+	var result struct {
+		Data struct {
+			Repository struct {
+				PullRequests struct {
+					Nodes []struct {
+						Number int    `json:"number"`
+						Title  string `json:"title"`
+						Author struct {
+							Login string `json:"login"`
+						} `json:"author"`
+						IsDraft        bool   `json:"isDraft"`
+						HeadRefName    string `json:"headRefName"`
+						ReviewDecision string `json:"reviewDecision"`
+					} `json:"nodes"`
+				} `json:"pullRequests"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(stdOut.Bytes(), &result); err != nil {
+		c.debugLog("Failed to parse GraphQL response: %v", err)
+		if c.debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Raw response: %s\n", stdOut.String())
+		}
+		return nil, fmt.Errorf("failed to parse GraphQL response: %w", err)
+	}
+
+	prs := make([]*PullRequest, 0, len(result.Data.Repository.PullRequests.Nodes))
+	for _, node := range result.Data.Repository.PullRequests.Nodes {
+		prs = append(prs, &PullRequest{
+			Number:         node.Number,
+			Title:          node.Title,
+			Author:         node.Author.Login,
+			IsDraft:        node.IsDraft,
+			HeadRefName:    node.HeadRefName,
+			ReviewDecision: node.ReviewDecision,
+		})
+	}
+
+	c.debugLog("Found %d open pull requests", len(prs))
+
+	return prs, nil
 }
 
 // DumpCommentsJSON returns raw JSON for the selected comment IDs. When commentIDs is empty, all

@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/chmouel/gh-prreview/pkg/github"
@@ -46,7 +44,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--json cannot be combined with --llm")
 	}
 
-	prNumber, err := getPRNumber(args, client)
+	prNumber, err := getPRNumberWithSelection(args, client)
 	if err != nil {
 		return err
 	}
@@ -116,25 +114,6 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-func getPRNumber(args []string, client *github.Client) (int, error) {
-	if len(args) > 0 {
-		prNumber, err := strconv.Atoi(args[0])
-		if err != nil {
-			return 0, fmt.Errorf("invalid PR number: %s", args[0])
-		}
-		return prNumber, nil
-	}
-
-	// Get PR number for current branch
-	prNumber, err := client.GetCurrentBranchPR()
-	if err != nil {
-		return 0, err
-	}
-
-	fmt.Fprintf(os.Stderr, "Auto-detected PR #%d for current branch\n", prNumber)
-	return prNumber, nil
 }
 
 func filterByThreadID(comments []*github.ReviewComment, threadID string) []*github.ReviewComment {

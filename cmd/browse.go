@@ -45,7 +45,7 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 	// Parse arguments based on count
 	if len(args) == 0 {
 		// No args: infer PR and let user select a comment interactively
-		prNumber, err = client.GetCurrentBranchPR()
+		prNumber, err = getPRNumberWithSelection([]string{}, client)
 		if err != nil {
 			return err
 		}
@@ -151,7 +151,7 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("invalid comment ID: %s", args[0])
 		}
-		prNumber, err = client.GetCurrentBranchPR()
+		prNumber, err = getPRNumberWithSelection([]string{}, client)
 		if err != nil {
 			return err
 		}

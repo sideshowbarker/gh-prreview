@@ -66,7 +66,7 @@ func runComment(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid comment ID: %s", args[0])
 		}
 		commentID = commentIDVal
-		prNumber, err = client.GetCurrentBranchPR()
+		prNumber, err = getPRNumberWithSelection([]string{}, client)
 		if err != nil {
 			return err
 		}

@@ -7,8 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var repoFlag string
-var noColor bool
+var (
+	repoFlag string
+	noColor  bool
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "gh-prreview",

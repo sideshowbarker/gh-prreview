@@ -329,21 +329,3 @@ func truncateString(s string, maxLen int) string {
 	}
 	return s[:maxLen-3] + "..."
 }
-
-// getRepoFromClient extracts the repository name from the client
-func getRepoFromClient(client *github.Client) string {
-	// Use the global repoFlag if set
-	if repoFlag != "" {
-		return repoFlag
-	}
-
-	// Try to get repo from the client's internal method
-	// We'll need to call the client's getRepo method
-	repo, err := client.GetRepo()
-	if err == nil && repo != "" {
-		return repo
-	}
-
-	// Fallback - we'll construct the URL without the repo part
-	return "owner/repo"
-}
