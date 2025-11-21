@@ -57,11 +57,11 @@ func NewReviewDialog() *ReviewDialogModel {
 	}
 }
 
-func (m ReviewDialogModel) Init() tea.Cmd {
+func (m *ReviewDialogModel) Init() tea.Cmd {
 	return textarea.Blink
 }
 
-func (m ReviewDialogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ReviewDialogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
@@ -141,7 +141,7 @@ func (m *ReviewDialogModel) cycleFocus(next bool) {
 	}
 }
 
-func (m ReviewDialogModel) View() string {
+func (m *ReviewDialogModel) View() string {
 	var b strings.Builder
 
 	// Header
