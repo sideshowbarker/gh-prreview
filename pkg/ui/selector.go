@@ -77,11 +77,11 @@ type SelectorOptions[T any] struct {
 	Renderer ItemRenderer[T]
 
 	// Core callbacks
-	OnSelect       CustomAction[T]        // Called when Enter is pressed
-	OnOpen         CustomAction[T]        // Called when 'o' is pressed
-	FilterFunc     func(T, bool) bool     // Filter items based on state
-	IsItemResolved func(T) bool           // For dynamic key display (r vs u)
-	RefreshItems   func() ([]T, error)    // Called when 'i' is pressed
+	OnSelect       CustomAction[T]     // Called when Enter is pressed
+	OnOpen         CustomAction[T]     // Called when 'o' is pressed
+	FilterFunc     func(T, bool) bool  // Filter items based on state
+	IsItemResolved func(T) bool        // For dynamic key display (r vs u)
+	RefreshItems   func() ([]T, error) // Called when 'i' is pressed
 
 	// Action: r/u (resolve toggle)
 	ResolveAction CustomAction[T]

@@ -25,8 +25,10 @@ const (
 	ColorGray    = "\033[90m"
 )
 
-var colorEnabled = true
-var uiDebug atomic.Bool
+var (
+	colorEnabled = true
+	uiDebug      atomic.Bool
+)
 
 // SetUIDebug enables debug timing output for UI operations.
 func SetUIDebug(enabled bool) {
@@ -34,8 +36,10 @@ func SetUIDebug(enabled bool) {
 }
 
 // Cached glamour renderer for markdown rendering (created once, reused)
-var cachedMarkdownRenderer *glamour.TermRenderer
-var rendererInitOnce sync.Once
+var (
+	cachedMarkdownRenderer *glamour.TermRenderer
+	rendererInitOnce       sync.Once
+)
 
 // Pre-compiled regexes for StripSuggestionBlock (avoids recompilation on each call)
 var (
