@@ -1,4 +1,4 @@
-.PHONY: build install test clean lint fmt help
+.PHONY: build install test clean lint fmt help lint test-coverage deps dev release uninstall fumpt
 
 BINARY_NAME=gh-prreview
 GO=go
@@ -50,3 +50,5 @@ deps: ## Download dependencies
 dev: build ## Build and run (useful for testing)
 	./$(BINARY_NAME)
 
+release:
+	./hack/make-release.sh
